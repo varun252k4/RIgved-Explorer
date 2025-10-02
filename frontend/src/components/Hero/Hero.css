@@ -1,0 +1,106 @@
+.hero {
+  position: relative;
+  height: 110vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 0 5%;
+  padding-top: 10%;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(255, 248, 240, 0.9) 0%, rgba(255, 251, 240, 0.7) 100%);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1; /* Ensure content stays above the ripple background */
+  max-width: 900px;
+}
+
+.hero-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+
+.hero h1 {
+  font-size: 3.5rem;
+  margin-bottom: 1.5rem;
+  color: var(--text-dark);
+  line-height: 1.2;
+}
+
+.hero h1 span {
+  color: var(--saffron);
+  position: relative;
+}
+
+.hero h1 span::after {
+  content: '';
+  position: absolute;
+  bottom: 5px;
+  left: 0;
+  width: 100%;
+  height: 8px;
+  background-color: rgba(255, 153, 51, 0.2);
+  z-index: -1;
+}
+
+.hero p {
+  font-size: 1.3rem;
+  margin-bottom: 2.5rem;
+  color: var(--text-light);
+  line-height: 1.6;
+}
+
+.om-container {
+  width: 300px;
+  height: 300px;
+  margin: 0 auto 3rem;
+  position: relative;
+}
+
+.om-container canvas {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+/* Mobile Responsive */
+@media (max-width: 992px) {
+  .hero h1 {
+    font-size: 2.8rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero h1 {
+    font-size: 2.2rem;
+  }
+  
+  .hero p {
+    font-size: 1.1rem;
+  }
+  
+  .om-container {
+    width: 250px;
+    height: 250px;
+  }
+}
+
+/* Add the pulse animation for waves */
+@keyframes pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2);
+    opacity: 0;
+  }
+}

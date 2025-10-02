@@ -1,0 +1,9 @@
+beautifulsoup4
+fastapi
+uvicorn
+python-dotenv
+google-generativeai
+pyjwt
+reportlab
+python-multipart
+pydantic[email]

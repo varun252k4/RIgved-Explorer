@@ -1,0 +1,213 @@
+.om-2d-container {
+  position: relative;
+  width: 300px;
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 3rem;
+}
+
+/* Ripple Circles */
+.ripple-circle {
+  position: absolute;
+  border: 2px solid rgba(255, 153, 51, 0.3);
+  border-radius: 50%;
+  width: 100px;
+  height: 100px;
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+.ripple-circle.animate {
+  opacity: 1;
+}
+
+.ripple-1.animate {
+  animation: ripple 4s infinite 0s ease-out;
+}
+
+.ripple-2.animate {
+  animation: ripple 4s infinite 1s ease-out;
+}
+
+.ripple-3.animate {
+  animation: ripple 4s infinite 2s ease-out;
+}
+
+.ripple-4.animate {
+  animation: ripple 4s infinite 3s ease-out;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+    border-color: rgba(255, 153, 51, 0.6);
+  }
+  50% {
+    border-color: rgba(19, 136, 8, 0.4);
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+    border-color: rgba(0, 0, 128, 0.2);
+  }
+}
+
+/* Main Om Symbol */
+.om-symbol {
+  position: relative;
+  z-index: 10;
+  filter: drop-shadow(0 0 20px rgba(255, 153, 51, 0.4));
+  transform: scale(0);
+  opacity: 0;
+  transition: all 0.8s ease-out;
+  width: 300px;      /* container size */
+  height: 300px;     /* container size */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.om-svg {
+  width: 80px;       /* shrink SVG */
+  height: 80px;
+  max-width: 100%;
+  max-height: 100%;
+  animation: float 6s ease-in-out infinite, glow 3s ease-in-out infinite alternate;
+}
+
+.om-symbol.animate {
+  transform: scale(1);
+  opacity: 1;
+}
+
+
+.om-path {
+  animation: pathGlow 4s ease-in-out infinite alternate;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-10px) scale(1.05);
+  }
+}
+
+@keyframes glow {
+  0% {
+    filter: drop-shadow(0 0 10px rgba(255, 153, 51, 0.6));
+  }
+  100% {
+    filter: drop-shadow(0 0 25px rgba(255, 153, 51, 0.9));
+  }
+}
+
+@keyframes pathGlow {
+  0% {
+    fill: url(#omGradient);
+    stroke-width: 1.5;
+  }
+  50% {
+    fill: #FFB366;
+    stroke-width: 2;
+  }
+  100% {
+    fill: url(#omGradient);
+    stroke-width: 1.5;
+  }
+}
+
+/* Particle Effects */
+.particles {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: linear-gradient(45deg, #FF9933, #FFD700);
+  border-radius: 50%;
+  opacity: 0;
+}
+
+.particle.animate {
+  opacity: 0.7;
+}
+
+/* Position particles around the Om */
+.particle-1 { top: 20%; left: 50%; animation: particleFloat 4s infinite 0s; }
+.particle-2 { top: 50%; right: 20%; animation: particleFloat 4s infinite 0.5s; }
+.particle-3 { bottom: 20%; left: 50%; animation: particleFloat 4s infinite 1s; }
+.particle-4 { top: 50%; left: 20%; animation: particleFloat 4s infinite 1.5s; }
+.particle-5 { top: 30%; right: 30%; animation: particleFloat 5s infinite 0.2s; }
+.particle-6 { bottom: 30%; left: 30%; animation: particleFloat 5s infinite 0.7s; }
+.particle-7 { top: 30%; left: 30%; animation: particleFloat 5s infinite 1.2s; }
+.particle-8 { bottom: 30%; right: 30%; animation: particleFloat 5s infinite 1.7s; }
+
+@keyframes particleFloat {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.3;
+  }
+  25% {
+    transform: translate(10px, -15px) scale(1.2);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate(-5px, -25px) scale(1.1);
+    opacity: 0.6;
+  }
+  75% {
+    transform: translate(-15px, -10px) scale(1.3);
+    opacity: 0.9;
+  }
+}
+
+/* Additional Breathing Effect */
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+
+.om-symbol.animate {
+  animation: breathe 8s ease-in-out infinite;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .om-2d-container {
+    width: 250px;
+    height: 250px;
+  }
+  
+  .om-svg {
+    width: 100px;
+    height: 100px;
+  }
+  
+  @keyframes ripple {
+    100% {
+      transform: scale(2);
+    }
+  }
+}
+
+/* High-resolution optimization */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .om-path {
+    shape-rendering: geometricPrecision;
+  }
+}
