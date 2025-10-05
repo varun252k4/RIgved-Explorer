@@ -10,7 +10,6 @@ from typing import List, Optional, Dict
 from pydantic import BaseModel
 import random
 from datetime import date
-import google.generativeai as genai
 from fastapi.responses import FileResponse
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -22,13 +21,11 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import inch
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
 import tempfile
-
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
 # Load environment variables
-load_dotenv()
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
 load_dotenv()
 
 # Get API key from environment variables
@@ -47,24 +44,22 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 bookmarks: Dict[str, List[dict]] = {}
 
-# -----------------------------
 # Bookmark Model
-# -----------------------------
 class Bookmark(BaseModel):
     user_id: str
     mandala: int
     sukta: int
     rik_number: int
 
-DATA_FILE = "../data/complete_rigveda_all_mandalas.json"
+DATA_FILE = "./data/complete_rigveda_all_mandalas.json"
 
 # Load JSON data once
 if not os.path.exists(DATA_FILE):
@@ -73,6 +68,54 @@ if not os.path.exists(DATA_FILE):
 with open(DATA_FILE, "r", encoding="utf-8") as f:
     rigveda_data = json.load(f)
 
+# Global variables for search optimization
+vectorizer = None
+verse_vectors = None
+verse_metadata = []
+
+def initialize_search_index():
+    """Initialize TF-IDF vectorizer and compute vectors for all verses"""
+    global vectorizer, verse_vectors, verse_metadata
+    
+    print("🔍 Building search index with cosine similarity...")
+    
+    texts = []
+    verse_metadata.clear()
+    
+    for mandala_key, suktas in rigveda_data.items():
+        mandala_id = int(mandala_key.split(" ")[1])
+        for sukta_key, riks in suktas.items():
+            sukta_id = int(sukta_key.split(" ")[1])
+            for rik in riks:
+                translation_text = rik.get("translation", "")
+                texts.append(translation_text)
+                
+                # Store metadata for each verse
+                verse_metadata.append({
+                    "mandala": mandala_id,
+                    "sukta": sukta_id,
+                    "rik_number": rik.get("rik_number"),
+                    "devanagari": rik.get("samhita", {}).get("devanagari", {}).get("text", ""),
+                    "transliteration": rik.get("padapatha", {}).get("transliteration", {}).get("text", ""),
+                    "translation": translation_text,
+                    "deity": rik.get("deity", "")
+                })
+    
+    # Create TF-IDF vectorizer
+    vectorizer = TfidfVectorizer(
+        lowercase=True,
+        stop_words='english',
+        max_features=5000,
+        ngram_range=(1, 2)  # Include bigrams for better context
+    )
+    
+    # Fit and transform all texts
+    verse_vectors = vectorizer.fit_transform(texts)
+    
+    print(f"✅ Search index built with {len(texts)} verses")
+
+# Initialize search index on startup
+initialize_search_index()
 
 # -----------------------------
 # Endpoint: List Mandalas
@@ -81,7 +124,6 @@ with open(DATA_FILE, "r", encoding="utf-8") as f:
 def get_mandalas():
     mandalas = list(rigveda_data.keys())
     return {"mandalas": mandalas}
-
 
 # -----------------------------
 # Endpoint: List Suktas in a Mandala
@@ -93,7 +135,6 @@ def get_suktas(mandala_id: int):
         raise HTTPException(status_code=404, detail="Mandala not found")
     suktas = list(rigveda_data[mandala_key].keys())
     return {"mandala": mandala_id, "suktas": suktas}
-
 
 # -----------------------------
 # Endpoint: List Riks in a Sukta
@@ -108,7 +149,6 @@ def get_riks(mandala_id: int, sukta_id: int):
 
     riks = [rik["rik_number"] for rik in rigveda_data[mandala_key][sukta_key]]
     return {"mandala": mandala_id, "sukta": sukta_id, "riks": riks}
-
 
 # -----------------------------
 # Endpoint: Get Rik Details
@@ -132,67 +172,95 @@ def get_rik_detail(mandala_id: int, sukta_id: int, rik_number: int):
     return rik_item
 
 # -----------------------------
-# Cached Search Helper
+# Cosine Similarity Search
 # -----------------------------
-@lru_cache(maxsize=128)
-def cached_search(query: str, fields_tuple: tuple, page: int, page_size: int):
-    results = []
-    fields = list(fields_tuple)
-
-    for mandala_key, suktas in rigveda_data.items():
-        mandala_id = int(mandala_key.split(" ")[1])
-        for sukta_key, riks in suktas.items():
-            sukta_id = int(sukta_key.split(" ")[1])
-            for rik in riks:
-                translation_text = rik.get("translation", "")
-                if query.lower() in translation_text.lower():
-                    result_item = {
-                        "mandala": mandala_id,
-                        "sukta": sukta_id,
-                        "rik_number": rik.get("rik_number")
-                    }
-
-                    if "devanagari" in fields:
-                        result_item["devanagari"] = rik.get("samhita", {}).get("devanagari", {}).get("text", "")
-
-                    if "transliteration" in fields:
-                        result_item["transliteration"] = rik.get("padapatha", {}).get("transliteration", {}).get("text", "")
-
-                    if "translation" in fields:
-                        result_item["translation"] = translation_text
-
-                    if "deity" in fields:
-                        result_item["deity"] = rik.get("deity", "")
-
-                    results.append(result_item)
-
+def cosine_similarity_search(query: str, fields: List[str], page: int, page_size: int, min_similarity: float = 0.1):
+    """
+    Search using cosine similarity between query and verse translations
+    
+    Args:
+        query: Search query string
+        fields: Fields to include in results
+        page: Page number for pagination
+        page_size: Number of results per page
+        min_similarity: Minimum similarity threshold (0-1)
+    """
+    global vectorizer, verse_vectors, verse_metadata
+    
+    if vectorizer is None or verse_vectors is None:
+        raise HTTPException(status_code=500, detail="Search index not initialized")
+    
+    # Transform query using the same vectorizer
+    query_vector = vectorizer.transform([query])
+    
+    # Calculate cosine similarities
+    similarities = cosine_similarity(query_vector, verse_vectors).flatten()
+    
+    # Get indices sorted by similarity (highest first)
+    sorted_indices = np.argsort(similarities)[::-1]
+    
+    # Filter by minimum similarity threshold
+    filtered_results = []
+    for idx in sorted_indices:
+        similarity_score = similarities[idx]
+        if similarity_score < min_similarity:
+            break
+            
+        metadata = verse_metadata[idx]
+        result_item = {
+            "mandala": metadata["mandala"],
+            "sukta": metadata["sukta"],
+            "rik_number": metadata["rik_number"],
+            "similarity_score": float(similarity_score)
+        }
+        
+        # Add requested fields
+        if "devanagari" in fields:
+            result_item["devanagari"] = metadata["devanagari"]
+        
+        if "transliteration" in fields:
+            result_item["transliteration"] = metadata["transliteration"]
+        
+        if "translation" in fields:
+            result_item["translation"] = metadata["translation"]
+        
+        if "deity" in fields:
+            result_item["deity"] = metadata["deity"]
+        
+        filtered_results.append(result_item)
+    
     # Pagination
-    total_results = len(results)
+    total_results = len(filtered_results)
     start = (page - 1) * page_size
     end = start + page_size
-    paginated_results = results[start:end]
-
+    paginated_results = filtered_results[start:end]
+    
     return {
         "query": query,
         "fields": fields,
         "page": page,
         "page_size": page_size,
         "total_results": total_results,
+        "min_similarity": min_similarity,
         "results": paginated_results
     }
 
-
 # -----------------------------
-# Endpoint: Search (with caching & pagination)
+# Endpoint: Search with Cosine Similarity
 # -----------------------------
 @app.get("/search", tags=["Rigveda"])
 def search_rigveda(
     query: str = Query(..., min_length=1, description="Search keyword in English translation"),
     fields: List[str] = Query(["translation"], description="Fields to return: devanagari, transliteration, translation, deity"),
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(10, ge=1, le=100, description="Number of results per page")
+    page_size: int = Query(10, ge=1, le=100, description="Number of results per page"),
+    min_similarity: float = Query(0.1, ge=0.0, le=1.0, description="Minimum similarity threshold (0-1)")
 ):
-    return cached_search(query, tuple(fields), page, page_size)
+    """
+    Search Rigveda verses using cosine similarity for semantic matching.
+    Returns results ranked by relevance with similarity scores.
+    """
+    return cosine_similarity_search(query, fields, page, page_size, min_similarity)
 
 # -----------------------------
 # Endpoint: Add Bookmark
@@ -213,7 +281,6 @@ def add_bookmark(bookmark: Bookmark):
     if not rik_item:
         raise HTTPException(status_code=404, detail="Verse not found")
 
-    # Add bookmark
     if bookmark.user_id not in bookmarks:
         bookmarks[bookmark.user_id] = []
 
@@ -228,7 +295,6 @@ def add_bookmark(bookmark: Bookmark):
 
     return {"message": "Bookmark added", "bookmarks": bookmarks[bookmark.user_id]}
 
-
 # -----------------------------
 # Endpoint: Get Bookmarks
 # -----------------------------
@@ -237,7 +303,6 @@ def get_bookmarks(user_id: str):
     if user_id not in bookmarks or not bookmarks[user_id]:
         raise HTTPException(status_code=404, detail="No bookmarks found for user")
     return {"user_id": user_id, "bookmarks": bookmarks[user_id]}
-
 
 # -----------------------------
 # Endpoint: Remove Bookmark
@@ -292,13 +357,11 @@ def random_verse(fields: list[str] = Query(["translation", "devanagari"], descri
 
     return result
 
-
 # -----------------------------
 # Endpoint: Daily Verse
 # -----------------------------
 @app.get("/daily-verse", tags=["Rigveda"])
 def daily_verse(fields: list[str] = Query(["translation", "devanagari"], description="Fields to return")):
-    # Use today's date to seed random generator for consistency
     today = date.today()
     random.seed(today.toordinal())
 
@@ -329,11 +392,9 @@ def daily_verse(fields: list[str] = Query(["translation", "devanagari"], descrip
 
     return result
 
-
 # Configure Gemini API
 api_key = os.getenv("GEMINI_API_KEY")
 model = None
-
 
 if GEMINI_API_KEY:
     try:
@@ -358,33 +419,16 @@ def ai_assistant(
             detail="Gemini API not configured. Please check your .env file."
         )
 
-    # Step 1: Search relevant verses in translation
-    search_results = []
-    search_terms = query.lower().split()
+    # Use cosine similarity search instead of keyword search
+    search_response = cosine_similarity_search(
+        query=query,
+        fields=fields,
+        page=1,
+        page_size=max_results,
+        min_similarity=0.1
+    )
     
-    for mandala_key, suktas in rigveda_data.items():
-        mandala_id = int(mandala_key.split(" ")[1])
-        for sukta_key, riks in suktas.items():
-            sukta_id = int(sukta_key.split(" ")[1])
-            for rik in riks:
-                translation_text = rik.get("translation", "").lower()
-                # Check if any search term is in the translation
-                if any(term in translation_text for term in search_terms):
-                    result_item = {
-                        "mandala": mandala_id,
-                        "sukta": sukta_id,
-                        "rik_number": rik.get("rik_number")
-                    }
-                    if "devanagari" in fields:
-                        result_item["devanagari"] = rik.get("samhita", {}).get("devanagari", {}).get("text", "")
-                    if "transliteration" in fields:
-                        result_item["transliteration"] = rik.get("padapatha", {}).get("transliteration", {}).get("text", "")
-                    if "translation" in fields:
-                        result_item["translation"] = translation_text
-
-                    search_results.append(result_item)
-
-    search_results = search_results[:max_results]  # limit results
+    search_results = search_response["results"]
 
     if not search_results:
         return {
@@ -399,10 +443,10 @@ def ai_assistant(
             )
         }
 
-    # Step 2: Create prompt for Gemini
+    # Create prompt for Gemini
     context_text = ""
     for res in search_results:
-        context_text += f"Mandala {res['mandala']}, Sukta {res['sukta']}, Rik {res['rik_number']}:\n"
+        context_text += f"Mandala {res['mandala']}, Sukta {res['sukta']}, Rik {res['rik_number']} (Relevance: {res['similarity_score']:.2f}):\n"
         if "translation" in res:
             context_text += f"Translation: {res['translation']}\n"
         if "devanagari" in res:
@@ -424,13 +468,12 @@ Based on the above verses from the Rigveda:
 2. Provide specific references to the verses shown above
 3. Explain the significance in Vedic literature
 4. If relevant, mention how this connects to broader Hindu philosophy
-5. What is the puprose of this verse
+5. What is the purpose of this verse
 
 Please keep your answer focused on what is mentioned in these specific verses while providing clear explanations.
 """
 
     try:
-        # Generate content using Gemini API
         response = model.generate_content(prompt)
         answer = response.text
     except Exception as e:
@@ -441,10 +484,10 @@ Please keep your answer focused on what is mentioned in these specific verses wh
         "context": search_results,
         "answer": answer
     }
+
 # -----------------------------
 # Endpoint: Get Sukta View with Audio Link
 # -----------------------------
-
 @app.get("/mandala/{mandala_id}/sukta/{sukta_id}/view", tags=["Rigveda"])
 def get_sukta_view(mandala_id: int, sukta_id: int):
     mandala_key = f"Mandala {mandala_id:01d}"
@@ -455,10 +498,8 @@ def get_sukta_view(mandala_id: int, sukta_id: int):
 
     riks = rigveda_data[mandala_key][sukta_key]
 
-    # Construct audio link based on mandala/sukta
     audio_url = f"https://sri-aurobindo.co.in/workings/matherials/rigveda/{mandala_id:02d}/{mandala_id:02d}-{sukta_id:03d}.mp3"
 
-    # Collect sukta text
     sukta_text = {
         "mandala": mandala_id,
         "sukta": sukta_id,
@@ -471,7 +512,8 @@ def get_sukta_view(mandala_id: int, sukta_id: int):
             "rik_number": rik["rik_number"],
             "samhita_devanagari": rik.get("samhita", {}).get("devanagari", {}).get("text", ""),
             "padapatha_devanagari": rik.get("padapatha", {}).get("devanagari", {}).get("text", ""),
-            "transliteration": rik.get("padapatha", {}).get("transliteration", {}).get("text", "")
+            "transliteration": rik.get("padapatha", {}).get("transliteration", {}).get("text", ""),
+            "translation": rik.get("translation", {})
         })
 
     return sukta_text
@@ -479,14 +521,10 @@ def get_sukta_view(mandala_id: int, sukta_id: int):
 def setup_sanskrit_font():
     """Setup and register Sanskrit font with proper fallback"""
     try:
-        # URL for Noto Sans Devanagari font
         font_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Regular.ttf"
-        
-        # Use temp directory to avoid permission issues
         temp_dir = tempfile.gettempdir()
         font_path = os.path.join(temp_dir, "NotoSansDevanagari-Regular.ttf")
         
-        # Download if not exists
         if not os.path.exists(font_path):
             print("Downloading Sanskrit font...")
             r = requests.get(font_url, timeout=30)
@@ -495,10 +533,7 @@ def setup_sanskrit_font():
                 f.write(r.content)
             print("Font downloaded successfully")
         
-        # Register the font
         pdfmetrics.registerFont(TTFont('NotoDevanagari', font_path))
-        
-        # Create a font family for fallback
         pdfmetrics.registerFontFamily(
             'NotoDevanagari',
             normal='NotoDevanagari',
@@ -518,35 +553,26 @@ def export_pdf(mandala: int, sukta: int,
                include_padapatha: bool = True, 
                include_transliteration: bool = True, 
                include_translation: bool = True):
-    """
-    Export selected Sukta as a PDF with Devanagari, Padapatha, Transliteration, and Translation
-    """
+    """Export selected Sukta as a PDF"""
     
-    # Setup Sanskrit font
     if not setup_sanskrit_font():
         return {"error": "Failed to setup Sanskrit font"}
 
-    # Fetch Sukta data
     mandala_key = f"Mandala {mandala}"
     if mandala_key not in rigveda_data:
         return {"error": "Mandala not found"}
 
     mandala_data = rigveda_data[mandala_key]
-
     sukta_key = f"Sukta {sukta}"
     if sukta_key not in mandala_data:
         return {"error": "Sukta not found"}
 
     sukta_data = mandala_data[sukta_key]
-
-    # PDF file path
     file_path = f"exports/mandala_{mandala}_sukta_{sukta}.pdf"
     os.makedirs("exports", exist_ok=True)
 
-    # Create custom styles
     styles = getSampleStyleSheet()
     
-    # Sanskrit text style
     sanskrit_style = ParagraphStyle(
         'SanskritStyle',
         parent=styles['Normal'],
@@ -554,10 +580,9 @@ def export_pdf(mandala: int, sukta: int,
         fontSize=12,
         leading=16,
         alignment=TA_LEFT,
-        wordWrap='CJK'  # Important for complex scripts
+        wordWrap='CJK'
     )
     
-    # English text style
     english_style = ParagraphStyle(
         'EnglishStyle',
         parent=styles['Normal'],
@@ -567,7 +592,6 @@ def export_pdf(mandala: int, sukta: int,
         alignment=TA_LEFT
     )
     
-    # Title style
     title_style = ParagraphStyle(
         'TitleStyle',
         parent=styles['Title'],
@@ -587,26 +611,19 @@ def export_pdf(mandala: int, sukta: int,
     )
     
     content = []
-
-    # Title
     content.append(Paragraph(f"<b>Rigveda Mandala {mandala}, Sukta {sukta}</b>", title_style))
     content.append(Spacer(1, 12))
 
-    # Loop through Riks
     for rik_index, rik in enumerate(sukta_data, 1):
-        # Add Rik number
         content.append(Paragraph(f"<b>Rik {rik_index}:</b>", english_style))
         content.append(Spacer(1, 6))
 
-        # Devanagari text
         devanagari_text = rik.get("samhita", {}).get("devanagari", {}).get("text", "")
         if devanagari_text:
-            # Clean and prepare Sanskrit text
             clean_sanskrit = devanagari_text.replace('\n', '<br/>')
             content.append(Paragraph(clean_sanskrit, sanskrit_style))
             content.append(Spacer(1, 6))
 
-        # Padapatha section
         if include_padapatha:
             padapatha_devanagari = rik.get("padapatha", {}).get("devanagari", {}).get("text", "")
             if padapatha_devanagari:
@@ -615,33 +632,22 @@ def export_pdf(mandala: int, sukta: int,
                 content.append(Paragraph(clean_padapatha, sanskrit_style))
                 content.append(Spacer(1, 6))
 
-        # Transliteration section
-        # if include_transliteration:
-        #     transliteration_text = rik.get("padapatha", {}).get("transliteration", {}).get("text", "")
-        #     if transliteration_text:
-        #         content.append(Paragraph(f"<i>Transliteration:</i> {transliteration_text}", english_style))
-        #         content.append(Spacer(1, 6))
-
-        # Translation section
         if include_translation:
             translation_text = rik.get("translation", "")
             if translation_text:
                 content.append(Paragraph(f"<i>Translation:</i> {translation_text}", english_style))
                 content.append(Spacer(1, 12))
 
-        # Add page break after every 5 Riks to avoid overflow
         if rik_index % 5 == 0:
             content.append(Spacer(1, 12))
 
     try:
-        # Build PDF
         doc.build(content)
         return FileResponse(file_path, media_type="application/pdf", filename=os.path.basename(file_path))
     
     except Exception as e:
         return {"error": f"PDF generation failed: {str(e)}"}
-    
-    
+
 # -----------------------------
 # MAIN: Run the app
 # -----------------------------

@@ -7,6 +7,7 @@ interface Rik {
   samhita_devanagari: string;
   padapatha_devanagari: string;
   transliteration: string;
+  translation: string;
 }
 
 interface SuktaView {
@@ -37,12 +38,19 @@ const AudioPlayerPage: React.FC = () => {
   const [currentRikIndex, setCurrentRikIndex] = useState(0);
   const [isAudioLoaded, setIsAudioLoaded] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
+  const [showSearch, setShowSearch] = useState(true);
+  
+  // Volume control state
+  const [volume, setVolume] = useState<number>(0.7);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [previousVolume, setPreviousVolume] = useState<number>(0.7);
 
   // Refs
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | undefined>(undefined);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const volumeRef = useRef<HTMLDivElement>(null);
 
   // Fetch mandalas on component mount
   useEffect(() => {
@@ -55,6 +63,20 @@ const AudioPlayerPage: React.FC = () => {
       fetchSuktas(selectedMandala);
     }
   }, [selectedMandala]);
+
+  // Collapse search when audio loads
+  useEffect(() => {
+    if (suktaView && isAudioLoaded) {
+      setShowSearch(false);
+    }
+  }, [suktaView, isAudioLoaded]);
+
+  // Update audio volume when component mounts and volume changes
+  useEffect(() => {
+    if (audioRef.current && !isMuted) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume, isMuted]);
 
   // Enhanced background visualization
   useEffect(() => {
@@ -157,6 +179,48 @@ const AudioPlayerPage: React.FC = () => {
     return () => audioRef.current?.removeEventListener('timeupdate', handleTimeUpdate);
   }, [duration, suktaView, currentRikIndex]);
 
+  // Volume control functions
+  const toggleMute = () => {
+    if (isMuted) {
+      // Unmute - restore previous volume
+      setIsMuted(false);
+      if (audioRef.current) {
+        audioRef.current.volume = previousVolume;
+        setVolume(previousVolume);
+      }
+    } else {
+      // Mute - store current volume and set to 0
+      setPreviousVolume(volume);
+      setIsMuted(true);
+      if (audioRef.current) {
+        audioRef.current.volume = 0;
+      }
+    }
+  };
+
+  const handleVolumeClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!volumeRef.current) return;
+
+    const rect = volumeRef.current.getBoundingClientRect();
+    const clickPosition = e.clientX - rect.left;
+    const width = rect.width;
+    const newVolume = Math.max(0, Math.min(1, clickPosition / width));
+
+    setVolume(newVolume);
+    setIsMuted(false);
+    
+    if (audioRef.current) {
+      audioRef.current.volume = newVolume;
+    }
+  };
+
+  const getVolumeIcon = () => {
+    if (isMuted || volume === 0) return 'mute';
+    if (volume < 0.3) return 'down';
+    if (volume < 0.7) return 'low';
+    return 'up';
+  };
+
   const fetchMandalas = async () => {
     try {
       const response = await fetch('/mandalas');
@@ -228,6 +292,7 @@ const AudioPlayerPage: React.FC = () => {
     setCurrentRikIndex(0);
     setCurrentTime(0);
     setAudioLoading(true);
+    setShowSearch(true); // Keep search visible until audio loads
 
     try {
       const response = await fetch(`/mandala/${selectedMandala}/sukta/${selectedSukta}/view`);
@@ -319,6 +384,10 @@ const AudioPlayerPage: React.FC = () => {
     }
   };
 
+  const toggleSearch = () => {
+    setShowSearch(!showSearch);
+  };
+
   const formatTime = (time: number) => {
     if (isNaN(time)) return '0:00';
     const minutes = Math.floor(time / 60);
@@ -326,15 +395,23 @@ const AudioPlayerPage: React.FC = () => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Safe text formatting function
-  const formatRikText = (text: string | undefined) => {
-    if (!text || typeof text !== 'string') {
-      return [<div key="0" className="rik-line">Verse text not available</div>];
-    }
-    
-    return text.split('|').map((line, index) => (
-      <div key={index} className="rik-line">
-        {line.trim()}
+  // Format translation text
+  const formatVerseText = (text?: string): React.ReactNode => {
+    if (!text) return null;
+
+    // Step 1: Remove surrounding quotes, whitespace, and invisible characters
+    text = text.replace(/^[\s"“”‘’«»\u200B\u00A0]+|[\s"“”‘’«»\u200B\u00A0]+$/g, "");
+
+    // Step 2: Replace danda and double danda with a consistent split marker "|"
+    text = text.replace(/॥/g, "॥|").replace(/।/g, "।|");
+
+    // Step 3: Also split by newlines in case verses come multi-line
+    let parts = text.split(/\||\n/).map(p => p.trim()).filter(Boolean);
+
+    // Step 4: Render each part on a separate line
+    return parts.map((line, idx) => (
+      <div key={idx} style={{ margin: "2px 0", lineHeight: "1.4", textAlign: "center" }}>
+        {line}
       </div>
     ));
   };
@@ -362,55 +439,57 @@ const AudioPlayerPage: React.FC = () => {
       </div>
 
       <div className="search-container">
-        {/* Selection Section */}
-        <div className="search-section">
-          <div className="selection-controls">
-            <div className="select-group">
-              <label>Mandala:</label>
-              <select 
-                value={selectedMandala} 
-                onChange={(e) => setSelectedMandala(Number(e.target.value))}
-                className="option-select"
-              >
-                {mandalas.map(mandala => (
-                  <option key={mandala.id} value={mandala.id}>
-                    Mandala {mandala.id} ({mandala.sukta_count} Suktas)
-                  </option>
-                ))}
-              </select>
-            </div>
+        {/* Collapsible Selection Section */}
+        {showSearch && (
+          <div className="search-section">
+            <div className="selection-controls">
+              <div className="select-group">
+                <label>Mandala:</label>
+                <select 
+                  value={selectedMandala} 
+                  onChange={(e) => setSelectedMandala(Number(e.target.value))}
+                  className="option-select"
+                >
+                  {mandalas.map(mandala => (
+                    <option key={mandala.id} value={mandala.id}>
+                      Mandala {mandala.id} ({mandala.sukta_count} Suktas)
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="select-group">
-              <label>Sukta:</label>
-              <select 
-                value={selectedSukta} 
-                onChange={(e) => setSelectedSukta(Number(e.target.value))}
-                className="option-select"
-              >
-                {suktas.map(sukta => (
-                  <option key={sukta} value={sukta}>
-                    Sukta {sukta}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <div className="select-group">
+                <label>Sukta:</label>
+                <select 
+                  value={selectedSukta} 
+                  onChange={(e) => setSelectedSukta(Number(e.target.value))}
+                  className="option-select"
+                >
+                  {suktas.map(sukta => (
+                    <option key={sukta} value={sukta}>
+                      Sukta {sukta}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <button 
-              onClick={loadSukta}
-              disabled={loading}
-              className="search-button"
-            >
-              {loading ? (
-                <div className="button-spinner"></div>
-              ) : (
-                <>
-                  <i className="fas fa-play"></i>
-                  Load Sukta
-                </>
-              )}
-            </button>
+              <button 
+                onClick={loadSukta}
+                disabled={loading}
+                className="search-button"
+              >
+                {loading ? (
+                  <div className="button-spinner"></div>
+                ) : (
+                  <>
+                    <i className="fas fa-play"></i>
+                    Load Sukta
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {error && (
           <div className="error-message">
@@ -443,6 +522,16 @@ const AudioPlayerPage: React.FC = () => {
         {/* Main Verse Display - Single Current Verse */}
         {suktaView && !audioLoading && getCurrentRik() && (
           <div className="verse-display-container">
+            {/* Toggle Search Button */}
+            <button 
+              className="toggle-search-btn"
+              onClick={toggleSearch}
+              title={showSearch ? "Hide Search" : "Show Search"}
+            >
+              <i className={`fas fa-${showSearch ? 'chevron-up' : 'chevron-down'}`}></i>
+              {showSearch ? "Hide Selection" : "Show Selection"}
+            </button>
+
             <div className="current-verse-card">
               <div className="verse-header">
                 <h3>Mandala {suktaView.mandala}, Sukta {suktaView.sukta}</h3>
@@ -451,10 +540,10 @@ const AudioPlayerPage: React.FC = () => {
                 </span>
               </div>
 
-              {/* Current Sanskrit Verse - Centered without boundaries */}
+              {/* Current Sanskrit Verse - Centered with large font */}
               <div className="sanskrit-verse active">
                 <div className="sanskrit-text">
-                  {formatRikText(getCurrentRik()?.samhita_devanagari)}
+                  {formatVerseText(getCurrentRik()?.samhita_devanagari)}
                 </div>
               </div>
 
@@ -463,18 +552,14 @@ const AudioPlayerPage: React.FC = () => {
                 <div className="detail-section">
                   <h4>Transliteration</h4>
                   <div className="transliteration-text">
-                    {formatRikText(getCurrentRik()?.transliteration)}
+                    {getCurrentRik()?.transliteration}
                   </div>
                 </div>
 
                 <div className="detail-section">
                   <h4>Translation</h4>
                   <div className="translation-text">
-                    {getCurrentRik()?.samhita_devanagari.split('|').map((line, idx) => (
-                      <p key={idx} className="translation-line">
-                        {line.trim()}
-                      </p>
-                    ))}
+                    {getCurrentRik()?.translation}
                   </div>
                 </div>
 
@@ -592,9 +677,31 @@ const AudioPlayerPage: React.FC = () => {
 
             {/* Volume Control */}
             <div className="player-volume">
-              <i className="fas fa-volume-up"></i>
-              <div className="volume-slider">
-                <div className="volume-level"></div>
+              <button 
+                className="volume-btn"
+                onClick={toggleMute}
+                title={isMuted ? 'Unmute' : 'Mute'}
+              >
+                <i className={`fas fa-volume-${getVolumeIcon()}`}></i>
+              </button>
+              
+              <div 
+                className="volume-slider"
+                ref={volumeRef}
+                onClick={handleVolumeClick}
+              >
+                <div 
+                  className="volume-track"
+                  onClick={handleVolumeClick}
+                >
+                  <div 
+                    className="volume-level"
+                    style={{ width: `${isMuted ? 0 : volume * 100}%` }}
+                    data-volume={`${Math.round(volume * 100)}%`}
+                  >
+                    <div className="volume-handle"></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -25,9 +25,6 @@ const Navbar: React.FC = () => {
         <li><a href="/audio-player">Audio Player</a></li>
         <li><a href="/search">Explore Rigveda</a></li>
         <li><a href="/ai-assistant">AI Assistant</a></li>
-        <li><a href="#verses">Verses</a></li>
-        <li><a href="#about">About Rigveda</a></li>
-        <li><a href="#contact">Contact</a></li>
       </ul>
       <button className="cta-button">Explore Now</button>
     </nav>

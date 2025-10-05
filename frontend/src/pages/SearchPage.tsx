@@ -10,7 +10,6 @@ interface SearchResult {
   translation?: string;
   devanagari?: string;
   transliteration?: string;
-  deity?: string;
 }
 
 interface VerseDetail {
@@ -23,7 +22,6 @@ interface VerseDetail {
     transliteration: { text: string };
   };
   translation: string;
-  deity: string;
 }
 
 interface Mandala {
@@ -34,6 +32,14 @@ interface Mandala {
 interface Sukta {
   id: number;
   name: string;
+}
+
+// Pagination state interface
+interface PaginationState {
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
+  totalResults: number;
 }
 
 const SearchPage: React.FC = () => {
@@ -53,6 +59,14 @@ const SearchPage: React.FC = () => {
   const [currentView, setCurrentView] = useState<'search' | 'browse'>('search');
   const [activeDropdown, setActiveDropdown] = useState<'mandala' | 'sukta' | 'rik' | null>(null);
   const [exporting, setExporting] = useState(false);
+  
+  // Pagination state
+  const [pagination, setPagination] = useState<PaginationState>({
+    currentPage: 1,
+    pageSize: 10,
+    totalPages: 1,
+    totalResults: 0
+  });
 
   // Fetch mandalas on component mount
   useEffect(() => {
@@ -97,6 +111,26 @@ const SearchPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatVerseText = (text?: string): React.ReactNode => {
+    if (!text) return null;
+  
+    // Step 1: Remove surrounding quotes, whitespace, and invisible characters
+    text = text.replace(/^[\s"“”‘’«»\u200B\u00A0]+|[\s"“”‘’«»\u200B\u00A0]+$/g, "");
+  
+    // Step 2: Replace danda and double danda with a consistent split marker "|"
+    text = text.replace(/॥/g, "॥|").replace(/।/g, "।|");
+  
+    // Step 3: Also split by newlines in case verses come multi-line
+    let parts = text.split(/\||\n/).map(p => p.trim()).filter(Boolean);
+  
+    // Step 4: Render each part on a separate line
+    return parts.map((line, idx) => (
+      <div key={idx} style={{ margin: "2px 0", lineHeight: "1.4", textAlign: "center" }}>
+        {line}
+      </div>
+    ));
   };
 
   const fetchSuktas = async (mandalaId: number) => {
@@ -144,17 +178,20 @@ const SearchPage: React.FC = () => {
     }
   };
 
-  const handleSearch = async (page: number = 1) => {
+  // Updated search function with pagination
+  const handleSearch = async (page: number = 1, newPageSize?: number) => {
     if (!searchQuery.trim()) return;
 
     try {
       setLoading(true);
       setError(null);
       
+      const pageSize = newPageSize || pagination.pageSize;
+      
       const params = new URLSearchParams({
         query: searchQuery,
         page: page.toString(),
-        page_size: '10'
+        page_size: pageSize.toString()
       });
 
       selectedFields.forEach(field => {
@@ -163,15 +200,44 @@ const SearchPage: React.FC = () => {
 
       const response = await fetch(`/search?${params}`);
       const data = await response.json();
-      setSearchResults(data.results);
+      
+      setSearchResults(data.results || []);
       setSelectedVerse(null);
       setSelectedVerseKey(null);
       setCurrentView('search');
+      
+      // Update pagination state with API response data
+      setPagination(prev => ({
+        ...prev,
+        currentPage: page,
+        pageSize: pageSize,
+        totalPages: data.total_pages || Math.ceil((data.total_results || 0) / pageSize),
+        totalResults: data.total_results || 0
+      }));
+      
     } catch (err) {
       setError('Search failed. Please try again.');
+      console.error('Search error:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle page change
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      handleSearch(newPage);
+    }
+  };
+
+  // Handle page size change
+  const handlePageSizeChange = (newSize: number) => {
+    setPagination(prev => ({
+      ...prev,
+      pageSize: newSize,
+      currentPage: 1 // Reset to first page when changing page size
+    }));
+    handleSearch(1, newSize);
   };
 
   // Export to PDF function
@@ -232,26 +298,33 @@ const SearchPage: React.FC = () => {
               h1 { color: #2C1810; border-bottom: 2px solid #FF9933; padding-bottom: 10px; }
               .result { margin-bottom: 20px; padding: 15px; border: 1px solid #e0e0e0; border-radius: 8px; }
               .location { color: #FF9933; font-weight: bold; }
-              .deity { background: #138808; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
               .text { margin: 10px 0; }
               .sanskrit { font-family: "Noto Sans Devanagari", sans-serif; font-size: 16px; }
+              .pagination-info { color: #666; margin: 10px 0; }
             </style>
           </head>
           <body>
             <h1>Rigveda Search Results</h1>
             <p><strong>Search Query:</strong> "${searchQuery}"</p>
-            <p><strong>Total Results:</strong> ${searchResults.length}</p>
+            <p><strong>Total Results:</strong> ${pagination.totalResults}</p>
+            <p><strong>Page:</strong> ${pagination.currentPage} of ${pagination.totalPages}</p>
             <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
             <hr>
-            ${searchResults.map((result, index) => `
-              <div class="result">
-                <div class="location">${index + 1}. Mandala ${result.mandala}, Sukta ${result.sukta}, Rik ${result.rik_number}</div>
-                ${result.deity ? `<span class="deity">Deity: ${result.deity}</span>` : ''}
-                ${result.translation ? `<div class="text"><strong>Translation:</strong> ${result.translation}</div>` : ''}
-                ${result.devanagari ? `<div class="text sanskrit"><strong>Devanagari:</strong> ${result.devanagari}</div>` : ''}
-                ${result.transliteration ? `<div class="text"><strong>Transliteration:</strong> ${result.transliteration}</div>` : ''}
-              </div>
-            `).join('')}
+            ${searchResults.map((result, index) => {
+              const globalIndex = ((pagination.currentPage - 1) * pagination.pageSize) + index + 1;
+              return `
+                <div class="result">
+                  <div class="location">${globalIndex}. Mandala ${result.mandala}, Sukta ${result.sukta}, Rik ${result.rik_number}</div>
+                  ${result.translation ? `<div class="text"><strong>Translation:</strong> ${result.translation}</div>` : ''}
+                  ${result.devanagari ? `<div class="text sanskrit"><strong>Devanagari:</strong> ${result.devanagari}</div>` : ''}
+                  ${result.transliteration ? `<div class="text"><strong>Transliteration:</strong> ${result.transliteration}</div>` : ''}
+                </div>
+              `;
+            }).join('')}
+            <div class="pagination-info">
+              Page ${pagination.currentPage} of ${pagination.totalPages} | 
+              Showing ${((pagination.currentPage - 1) * pagination.pageSize) + 1} - ${Math.min(pagination.currentPage * pagination.pageSize, pagination.totalResults)} of ${pagination.totalResults} results
+            </div>
           </body>
         </html>
       `;
@@ -269,6 +342,80 @@ const SearchPage: React.FC = () => {
     } finally {
       setExporting(false);
     }
+  };
+
+  // Pagination controls component
+  const renderPagination = () => {
+    if (pagination.totalPages <= 1) return null;
+
+    return (
+      <div className="pagination-controls">
+        {/* Page Size Selector */}
+        <div className="page-size-selector">
+          <label>Results per page: </label>
+          <select 
+            value={pagination.pageSize}
+            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+            className="page-size-select"
+          >
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
+        </div>
+
+        {/* Page Navigation */}
+        <div className="page-navigation">
+          <button 
+            className="page-btn"
+            onClick={() => handlePageChange(1)}
+            disabled={pagination.currentPage === 1}
+            title="First Page"
+          >
+            <i className="fas fa-angle-double-left"></i>
+          </button>
+          
+          <button 
+            className="page-btn"
+            onClick={() => handlePageChange(pagination.currentPage - 1)}
+            disabled={pagination.currentPage === 1}
+            title="Previous Page"
+          >
+            <i className="fas fa-angle-left"></i>
+          </button>
+
+          <span className="page-info">
+            Page {pagination.currentPage} of {pagination.totalPages}
+          </span>
+
+          <button 
+            className="page-btn"
+            onClick={() => handlePageChange(pagination.currentPage + 1)}
+            disabled={pagination.currentPage === pagination.totalPages}
+            title="Next Page"
+          >
+            <i className="fas fa-angle-right"></i>
+          </button>
+          
+          <button 
+            className="page-btn"
+            onClick={() => handlePageChange(pagination.totalPages)}
+            disabled={pagination.currentPage === pagination.totalPages}
+            title="Last Page"
+          >
+            <i className="fas fa-angle-double-right"></i>
+          </button>
+        </div>
+
+        {/* Results Count */}
+        <div className="results-count">
+          Showing {((pagination.currentPage - 1) * pagination.pageSize) + 1} -{' '}
+          {Math.min(pagination.currentPage * pagination.pageSize, pagination.totalResults)} of{' '}
+          {pagination.totalResults} results
+        </div>
+      </div>
+    );
   };
 
   const handleFieldToggle = (field: string) => {
@@ -352,7 +499,7 @@ const SearchPage: React.FC = () => {
           {/* Search Filters */}
           <div className="search-filters">
             <label>Search in:</label>
-            {['translation', 'devanagari', 'transliteration', 'deity'].map(field => (
+            {['translation', 'devanagari', 'transliteration'].map(field => (
               <label key={field} className="filter-checkbox">
                 <input
                   type="checkbox"
@@ -549,7 +696,12 @@ const SearchPage: React.FC = () => {
             {/* Search Results Header with Export */}
             {currentView === 'search' && searchResults.length > 0 && (
               <div className="results-header">
-                <h3>Search Results ({searchResults.length})</h3>
+                <div className="results-info">
+                  <h3>Search Results ({pagination.totalResults})</h3>
+                  <div className="pagination-top">
+                    {renderPagination()}
+                  </div>
+                </div>
                 <button 
                   className="export-search-button"
                   onClick={handleExportSearchResults}
@@ -563,66 +715,67 @@ const SearchPage: React.FC = () => {
 
             {/* Search Results */}
             {currentView === 'search' && searchResults.length > 0 && (
-              <div className="search-results">
-                {searchResults.map((result, index) => {
-                  const resultKey = `search-result-${index}`;
-                  const isExpanded = selectedVerseKey === resultKey;
-                  
-                  return (
-                    <div key={index} className="search-result-container">
-                      <div
-                        className={`result-item ${isExpanded ? 'expanded' : ''}`}
-                        onClick={() => handleSearchResultClick(result, index)}
-                      >
-                        <div className="result-header">
-                          <span className="verse-location">
-                            Mandala {result.mandala}, Sukta {result.sukta}, Rik {result.rik_number}
-                            {isExpanded && <i className="fas fa-chevron-up expand-icon"></i>}
-                            {!isExpanded && <i className="fas fa-chevron-down expand-icon"></i>}
-                          </span>
-                          {result.deity && (
-                            <span className="deity-tag">Deity: {result.deity}</span>
+              <>
+                <div className="search-results">
+                  {searchResults.map((result, index) => {
+                    const resultKey = `search-result-${index}`;
+                    const isExpanded = selectedVerseKey === resultKey;
+                    const globalIndex = ((pagination.currentPage - 1) * pagination.pageSize) + index + 1;
+                    
+                    return (
+                      <div key={index} className="search-result-container">
+                        <div
+                          className={`result-item ${isExpanded ? 'expanded' : ''}`}
+                          onClick={() => handleSearchResultClick(result, index)}
+                        >
+                          <div className="result-header">
+                            <span className="verse-location">
+                              {globalIndex}. Mandala {result.mandala}, Sukta {result.sukta}, Rik {result.rik_number}
+                              {isExpanded && <i className="fas fa-chevron-up expand-icon"></i>}
+                              {!isExpanded && <i className="fas fa-chevron-down expand-icon"></i>}
+                            </span>
+                          </div>
+                          {result.translation && (
+                            <p className="verse-text">{result.translation}</p>
+                          )}
+                          {result.devanagari && (
+                            <p className="devanagari-text">{result.devanagari}</p>
                           )}
                         </div>
-                        {result.translation && (
-                          <p className="verse-text">{result.translation}</p>
-                        )}
-                        {result.devanagari && (
-                          <p className="devanagari-text">{result.devanagari}</p>
+
+                        {/* Verse Details shown immediately below the selected result */}
+                        {isExpanded && selectedVerse && (
+                          <div className="verse-detail-expanded">
+                            <div className="verse-section">
+                              <h4>Samhita (Devanagari)</h4>
+                              <p className="sanskrit-text">{formatVerseText(selectedVerse.samhita.devanagari.text)}</p>
+                            </div>
+
+                            <div className="verse-section">
+                              <h4>Padapatha</h4>
+                              <p>{selectedVerse.padapatha.devanagari.text}</p>
+                            </div>
+                            <div className='verse-section'>
+                              <h4>Transliteration</h4>
+                              <p className="transliteration">{selectedVerse.padapatha.transliteration.text}</p>
+                            </div>
+
+                            {/* <div className="verse-section">
+                              <h4>Translation</h4>
+                              <p className="translation">{selectedVerse.translation}</p>
+                            </div> */}
+                          </div>
                         )}
                       </div>
-
-                      {/* Verse Details shown immediately below the selected result */}
-                      {isExpanded && selectedVerse && (
-                        <div className="verse-detail-expanded">
-                          <div className="verse-section">
-                            <h4>Samhita (Devanagari)</h4>
-                            <p className="sanskrit-text">{selectedVerse.samhita.devanagari.text}</p>
-                          </div>
-
-                          <div className="verse-section">
-                            <h4>Padapatha</h4>
-                            <p className="sanskrit-text">{selectedVerse.padapatha.devanagari.text}</p>
-                            <p className="transliteration">{selectedVerse.padapatha.transliteration.text}</p>
-                          </div>
-
-                          <div className="verse-section">
-                            <h4>Translation</h4>
-                            <p className="translation">{selectedVerse.translation}</p>
-                          </div>
-
-                          {selectedVerse.deity && (
-                            <div className="verse-section">
-                              <h4>Deity</h4>
-                              <span className="deity-badge">{selectedVerse.deity}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Pagination Controls at Bottom */}
+                <div className="pagination-bottom">
+                  {renderPagination()}
+                </div>
+              </>
             )}
 
             {currentView === 'search' && searchQuery && searchResults.length === 0 && !loading && (
@@ -665,13 +818,6 @@ const SearchPage: React.FC = () => {
                   <h4>Translation</h4>
                   <p className="translation">{selectedVerse.translation}</p>
                 </div>
-
-                {selectedVerse.deity && (
-                  <div className="verse-section">
-                    <h4>Deity</h4>
-                    <span className="deity-badge">{selectedVerse.deity}</span>
-                  </div>
-                )}
               </div>
             )}
 

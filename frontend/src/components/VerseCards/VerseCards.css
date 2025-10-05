@@ -6,23 +6,26 @@
 .cards-container {
   display: flex;
   justify-content: center;
+  align-items: stretch;
   gap: 40px;
   flex-wrap: wrap;
   margin-top: 50px;
 }
 
 .verse-card {
-  width: 350px;
+  width: clamp(320px, 40vw, 480px);
   background: white;
   border-radius: 20px;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-  transition: all 0.4s ease;
+  transition: all 0.4s ease, height 0.4s ease;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .verse-card:hover {
-  transform: translateY(-15px);
+  transform: translateY(-10px);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
 }
 
@@ -40,26 +43,44 @@
 
 .card-body {
   padding: 25px;
-  min-height: 250px;
+  flex-grow: 1;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  transition: all 0.3s ease;
 }
 
 .verse-text {
-  font-size: 1.1rem;
-  line-height: 1.7;
+  font-size: 1.15rem;
+  line-height: 1.8;
   color: var(--text-light);
   margin-bottom: 20px;
+  text-align: center;
   font-style: italic;
+  white-space: pre-wrap;
+  word-break: break-word;
+  transition: font-size 0.3s ease;
+}
+
+.verse-translation {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--green);
+  text-align: center;
+  margin-top: 10px;
+  font-weight: 500;
+  white-space: pre-wrap;
 }
 
 .verse-details {
   display: flex;
   justify-content: space-between;
-  color: var(--saffron);
+  color: var(--saffron-dark);
   font-weight: 600;
   margin-top: auto;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 0.95rem;
 }
 
 .card-footer {
@@ -78,14 +99,28 @@
   gap: 5px;
 }
 
+.rik-line {
+  display: block;
+  text-align: center;
+  margin: 0.2rem 0;  /* reduce vertical gap */
+  font-size: 1.15rem;
+  line-height: 1.5;  /* tighter line height */
+  color: var(--text-light);
+  font-style: italic;
+  white-space: pre-wrap; /* preserve formatting */
+  word-break: keep-all;  /* prevent breaking words */
+}
+
+
+
 .refresh-btn {
   background: transparent;
   border: 1px solid var(--saffron);
   color: var(--saffron);
-  padding: 8px 15px;
+  padding: 8px 18px;
   border-radius: 20px;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
   font-weight: 500;
   font-size: 0.9rem;
 }
@@ -95,20 +130,45 @@
   color: white;
 }
 
+/* Ensure long verses auto-expand and center properly */
+.verse-card {
+  height: auto;
+  min-height: 280px;
+}
+
+.card-body {
+  height: auto;
+}
+
+/* Smooth expansion for long texts */
+.verse-card,
+.card-body {
+  transition: all 0.3s ease-in-out;
+}
+
 /* Mobile Responsive */
-@media (max-width: 576px) {
+@media (max-width: 768px) {
   .cards-container {
     flex-direction: column;
     align-items: center;
   }
-  
+
   .verse-card {
     width: 100%;
-    max-width: 350px;
+    max-width: 400px;
   }
-  
+
+  .verse-text {
+    font-size: 1rem;
+  }
+
+  .verse-translation {
+    font-size: 0.9rem;
+  }
+
   .verse-details {
     flex-direction: column;
-    gap: 10px;
+    align-items: center;
+    gap: 8px;
   }
 }

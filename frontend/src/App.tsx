@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import SearchPage from './pages/SearchPage';
-import AIAssistant from './pages/AIAssistant';
+import AIAssistant from './pages/AIAssistant/AIAssistant';
 import AudioPlayerPage from './pages/AudioPlayerPage';
 import './App.css';
 

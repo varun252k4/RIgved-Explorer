@@ -7,3 +7,5 @@ pyjwt
 reportlab
 python-multipart
 pydantic[email]
+scikit-learn
+numpy

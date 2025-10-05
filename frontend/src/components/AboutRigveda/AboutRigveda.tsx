@@ -17,7 +17,7 @@ const AboutRigveda: React.FC = () => {
           <button className="cta-button">Learn More</button>
         </div>
         <div className="about-image">
-          <img src="https://images.unsplash.com/photo-1589994965851-a8f479c573a9?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80" alt="Ancient Sanskrit Manuscript" />
+          <img src="https://nrievents.com/wp-content/uploads/2023/03/Untitled-design-2023-03-15T114342.055-1.jpg" alt="Ancient Sanskrit Manuscript" />
         </div>
       </div>
     </section>

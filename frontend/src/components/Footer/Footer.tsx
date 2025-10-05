@@ -25,7 +25,7 @@ const Footer: React.FC = () => {
             <li><a href="#">Mandalas</a></li>
           </ul>
         </div>
-        <div className="footer-column">
+        {/* <div className="footer-column">
           <h3>Resources</h3>
           <ul className="footer-links">
             <li><a href="#">Sanskrit Learning</a></li>
@@ -34,13 +34,12 @@ const Footer: React.FC = () => {
             <li><a href="#">Audio Library</a></li>
             <li><a href="#">PDF Downloads</a></li>
           </ul>
-        </div>
+        </div> */}
         <div className="footer-column">
           <h3>Contact Us</h3>
           <ul className="footer-links">
-            <li><i className="fas fa-map-marker-alt"></i> Varanasi, India</li>
-            <li><i className="fas fa-envelope"></i> contact@rigvedaexplorer.com</li>
-            <li><i className="fas fa-phone"></i> +91 98765 43210</li>
+            <li><i className="fas fa-envelope"></i> varun.252k4@gmail.com</li>
+            <li><i className="fas fa-phone"></i> +91 912345678</li>
           </ul>
         </div>
       </div>
