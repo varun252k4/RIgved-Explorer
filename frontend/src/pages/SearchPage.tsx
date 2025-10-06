@@ -56,9 +56,10 @@ const SearchPage: React.FC = () => {
   const [suktas, setSuktas] = useState<Sukta[]>([]);
   const [selectedSukta, setSelectedSukta] = useState<number | null>(null);
   const [riks, setRiks] = useState<number[]>([]);
-  const [currentView, setCurrentView] = useState<'search' | 'browse'>('search');
+  const [currentView, setCurrentView] = useState<'search' | 'browse'>('browse');
   const [activeDropdown, setActiveDropdown] = useState<'mandala' | 'sukta' | 'rik' | null>(null);
   const [exporting, setExporting] = useState(false);
+  const API_BASE = "https://rigved-backend-1-0.onrender.com";
   
   // Pagination state
   const [pagination, setPagination] = useState<PaginationState>({
@@ -99,7 +100,7 @@ const SearchPage: React.FC = () => {
   const fetchMandalas = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/mandalas');
+      const response = await fetch(`${API_BASE}/mandalas`);
       const data = await response.json();
       const formattedMandalas = data.mandalas.map((name: string, index: number) => ({
         id: index + 1,
@@ -136,7 +137,7 @@ const SearchPage: React.FC = () => {
   const fetchSuktas = async (mandalaId: number) => {
     try {
       setLoading(true);
-      const response = await fetch(`/mandala/${mandalaId}/suktas`);
+      const response = await fetch(`${API_BASE}/mandala/${mandalaId}/suktas`);
       const data = await response.json();
       const formattedSuktas = data.suktas.map((name: string, index: number) => ({
         id: index + 1,
@@ -153,7 +154,7 @@ const SearchPage: React.FC = () => {
   const fetchRiks = async (mandalaId: number, suktaId: number) => {
     try {
       setLoading(true);
-      const response = await fetch(`/mandala/${mandalaId}/sukta/${suktaId}/riks`);
+      const response = await fetch(`${API_BASE}/mandala/${mandalaId}/sukta/${suktaId}/riks`);
       const data = await response.json();
       setRiks(data.riks);
     } catch (err) {
@@ -166,7 +167,7 @@ const SearchPage: React.FC = () => {
   const fetchVerseDetail = async (mandalaId: number, suktaId: number, rikNumber: number, resultKey: string) => {
     try {
       setLoading(true);
-      const response = await fetch(`/mandala/${mandalaId}/sukta/${suktaId}/rik/${rikNumber}`);
+      const response = await fetch(`${API_BASE}/mandala/${mandalaId}/sukta/${suktaId}/rik/${rikNumber}`);
       const data = await response.json();
       setSelectedVerse(data);
       setSelectedVerseKey(resultKey);
@@ -198,13 +199,13 @@ const SearchPage: React.FC = () => {
         params.append('fields', field);
       });
 
-      const response = await fetch(`/search?${params}`);
+      const response = await fetch(`${API_BASE}/search?${params}`);
       const data = await response.json();
       
       setSearchResults(data.results || []);
       setSelectedVerse(null);
       setSelectedVerseKey(null);
-      setCurrentView('search');
+      setCurrentView('browse');
       
       // Update pagination state with API response data
       setPagination(prev => ({
@@ -251,7 +252,7 @@ const SearchPage: React.FC = () => {
       setExporting(true);
       setError(null);
 
-      const response = await fetch(`/export_pdf/${selectedMandala}/${selectedSukta}?include_padapatha=true&include_transliteration=true&include_translation=true`);
+      const response = await fetch(`${API_BASE}/export_pdf/${selectedMandala}/${selectedSukta}?include_padapatha=true&include_transliteration=true&include_translation=true`);
       
       if (!response.ok) {
         throw new Error('Failed to generate PDF');
@@ -481,7 +482,7 @@ const SearchPage: React.FC = () => {
           <div className="search-input-group">
             <input
               type="text"
-              placeholder="Search for verses, deities, or concepts..."
+              placeholder="Search for verses, or concepts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -713,6 +714,8 @@ const SearchPage: React.FC = () => {
               </div>
             )}
 
+            
+
             {/* Search Results */}
             {currentView === 'search' && searchResults.length > 0 && (
               <>
@@ -742,6 +745,8 @@ const SearchPage: React.FC = () => {
                             <p className="devanagari-text">{result.devanagari}</p>
                           )}
                         </div>
+
+                        
 
                         {/* Verse Details shown immediately below the selected result */}
                         {isExpanded && selectedVerse && (
@@ -841,6 +846,7 @@ const SearchPage: React.FC = () => {
                     </div>
                   </div>
                 )}
+
 
                 {selectedMandala && !selectedSukta && (
                   <div className="instruction-step">

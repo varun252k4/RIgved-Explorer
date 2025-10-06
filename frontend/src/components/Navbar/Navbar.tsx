@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import './Navbar.css';
+import { href } from 'react-router-dom';
 
 const Navbar: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -26,7 +27,7 @@ const Navbar: React.FC = () => {
         <li><a href="/search">Explore Rigveda</a></li>
         <li><a href="/ai-assistant">AI Assistant</a></li>
       </ul>
-      <button className="cta-button">Explore Now</button>
+      <a href="/search"><button className="cta-button">Explore Now</button></a>
     </nav>
   );
 };

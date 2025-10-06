@@ -10,8 +10,8 @@ const Hero: React.FC = () => {
       <div className="hero-content">
         <Om2D />
         <h1>Discover the Ancient Wisdom of the <span>Rigveda</span></h1>
-        <p>Explore the oldest sacred text of Hinduism with our comprehensive digital platform. Access all 10 Mandalas, 1,028 Suktas, and over 10,600 Riks with translations and interpretations.</p>
-        <button className="cta-button">Begin Your Journey</button>
+        <p>Explore the oldest sacred text of Hinduism with our comprehensive digital platform. Access all 10 Mandalas, 1,028 Suktas, with translations and interpretations.</p>
+        <button onClick={() => window.location.href="/search"} className="cta-button">Begin Your Journey</button>
       </div>
     </section>
   );

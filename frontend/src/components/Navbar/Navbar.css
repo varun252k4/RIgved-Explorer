@@ -1,3 +1,15 @@
+:root {
+  --navbar-height: 80px;
+  --navbar-height-scrolled: 80px;
+  --navbar-height-mobile: 150px;
+  --navbar-height-mobile-scrolled: 150px;
+}
+
+/* Reset body padding to ensure no overlap */
+body {
+  padding-top: var(--navbar-height);
+}
+
 .navbar {
   position: fixed;
   top: 0;
@@ -10,12 +22,16 @@
   box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
   z-index: 1000;
   transition: all 0.3s ease;
+  height: var(--navbar-height);
+  box-sizing: border-box;
 }
 
 .navbar.scrolled {
   padding: 0.8rem 5%;
   background: rgba(255, 255, 255, 0.98);
+  height: var(--navbar-height-scrolled);
 }
+
 
 .logo {
   display: flex;
@@ -34,6 +50,8 @@
 .nav-links {
   display: flex;
   list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .nav-links li {
@@ -72,15 +90,50 @@
   font-size: 0.9rem;
 }
 
+/* Ensure all pages start below navbar */
+.main-content,
+.search-page,
+.hero,
+.about-page,
+.contact-page {
+  min-height: calc(100vh - var(--navbar-height));
+}
+
+/* Specific hero section adjustment */
+.hero {
+  margin-top: 0;
+  height: calc(100vh - var(--navbar-height));
+  box-sizing: border-box;
+}
+
+/* Search page specific adjustments */
+.search-page {
+  margin-top: var(--navbar-height);
+  padding-top: 2rem;
+}
+
+.search-container {
+  margin-top: 0;
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
+  
   .navbar {
     flex-direction: column;
     padding: 1rem 5%;
+    height: var(--navbar-height-mobile);
+    min-height: var(--navbar-height-mobile);
+  }
+  
+  .navbar.scrolled {
+    padding: 0.5rem 5%;
+    height: var(--navbar-height-mobile-scrolled);
+    min-height: var(--navbar-height-mobile-scrolled);
   }
   
   .nav-links {
-    margin-top: 15px;
+    margin-top: 10px;
     flex-wrap: wrap;
     justify-content: center;
   }
@@ -91,5 +144,157 @@
   
   .navbar .cta-button {
     margin-top: 10px;
+    padding: 8px 20px;
+    font-size: 0.8rem;
+  }
+  
+  /* Adjust content for mobile navbar */
+  .main-content,
+  .search-page,
+  .hero,
+  .about-page,
+  .contact-page {
+    min-height: calc(100vh - var(--navbar-height-mobile));
+  }
+  
+  .hero {
+    height: calc(100vh - var(--navbar-height-mobile));
+    padding-top: var(--navbar-height-mobile);
+  }
+  
+  /* Logo size adjustment for mobile */
+  .logo {
+    font-size: 1.3rem;
+  }
+  
+  .logo i {
+    font-size: 1.5rem;
+    margin-right: 8px;
+  }
+}
+
+/* Small Mobile Devices */
+@media (max-width: 480px) {
+  
+  .navbar {
+    padding: 0.8rem 5%;
+    height: var(--navbar-height-mobile);
+  }
+  
+  .navbar.scrolled {
+    padding: 0.4rem 5%;
+    height: var(--navbar-height-mobile-scrolled);
+  }
+  
+  .nav-links {
+    margin-top: 8px;
+  }
+  
+  .nav-links li {
+    margin: 3px 8px;
+  }
+  
+  .nav-links a {
+    font-size: 0.9rem;
+  }
+  
+  .logo {
+    font-size: 1.2rem;
+  }
+  
+  .logo i {
+    font-size: 1.4rem;
+    margin-right: 6px;
+  }
+  
+  .navbar .cta-button {
+    padding: 6px 16px;
+    font-size: 0.8rem;
+  }
+}
+
+/* Landscape mode for mobile */
+@media (max-height: 500px) and (orientation: landscape) {
+  .navbar {
+    height: 60px;
+    padding: 0.5rem 5%;
+  }
+  
+  .navbar.scrolled {
+    height: 50px;
+    padding: 0.3rem 5%;
+  }
+  
+  body {
+    padding-top: 60px;
+  }
+  
+  .main-content,
+  .search-page,
+  .hero,
+  .about-page,
+  .contact-page {
+    margin-top: 60px;
+    min-height: calc(100vh - 60px);
+  }
+  
+  .hero {
+    height: calc(100vh - 60px);
+    padding-top: 60px;
+  }
+  
+  .nav-links {
+    margin-top: 5px;
+  }
+}
+
+/* Ensure no content ever goes behind navbar */
+* {
+  box-sizing: border-box;
+}
+
+/* Additional safety rules */
+.container,
+.page-wrapper,
+.content-wrapper {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+/* Prevent any element from positioning behind navbar */
+body > *:not(.navbar) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Specific rule for pages that might have absolute positioning */
+.absolute-element,
+.fixed-element {
+  top: var(--navbar-height) !important;
+}
+
+/* When navbar is scrolled, update the top position for absolute elements */
+.navbar.scrolled ~ .absolute-element,
+.navbar.scrolled ~ .fixed-element {
+  top: var(--navbar-height-scrolled) !important;
+}
+
+/* Print styles - hide navbar */
+@media print {
+  .navbar {
+    display: none;
+  }
+  
+  body {
+    padding-top: 0;
+  }
+  
+  .main-content,
+  .search-page,
+  .hero,
+  .about-page,
+  .contact-page {
+    margin-top: 0;
+    min-height: auto;
   }
 }

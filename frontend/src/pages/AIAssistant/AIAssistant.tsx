@@ -57,6 +57,7 @@ const AIAssistant: React.FC = () => {
   const [loadingVerse, setLoadingVerse] = useState(false);
   const [expandedVerses, setExpandedVerses] = useState<Set<string>>(new Set());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const API_BASE = "https://rigved-backend-1-0.onrender.com";
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -137,7 +138,7 @@ const AIAssistant: React.FC = () => {
         params.append('fields', field);
       });
 
-      const response = await fetch(`/ai-assistant?${params}`, {
+      const response = await fetch(`${API_BASE}/ai-assistant?${params}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -172,7 +173,7 @@ const AIAssistant: React.FC = () => {
   const fetchVerseDetail = async (verse: ContextVerse) => {
     try {
       setLoadingVerse(true);
-      const response = await fetch(`/mandala/${verse.mandala}/sukta/${verse.sukta}/rik/${verse.rik_number}`);
+      const response = await fetch(`${API_BASE}/mandala/${verse.mandala}/sukta/${verse.sukta}/rik/${verse.rik_number}`);
       if (!response.ok) {
         throw new Error('Failed to fetch verse details');
       }

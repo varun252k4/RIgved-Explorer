@@ -174,7 +174,7 @@ def get_rik_detail(mandala_id: int, sukta_id: int, rik_number: int):
 # -----------------------------
 # Cosine Similarity Search
 # -----------------------------
-def cosine_similarity_search(query: str, fields: List[str], page: int, page_size: int, min_similarity: float = 0.1):
+def cosine_similarity_search(query: str, fields: List[str], page: int, page_size: int, min_similarity: float = 0.4):
     """
     Search using cosine similarity between query and verse translations
     
@@ -254,7 +254,7 @@ def search_rigveda(
     fields: List[str] = Query(["translation"], description="Fields to return: devanagari, transliteration, translation, deity"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(10, ge=1, le=100, description="Number of results per page"),
-    min_similarity: float = Query(0.1, ge=0.0, le=1.0, description="Minimum similarity threshold (0-1)")
+    min_similarity: float = Query(0.4, ge=0.0, le=1.0, description="Minimum similarity threshold (0-1)")
 ):
     """
     Search Rigveda verses using cosine similarity for semantic matching.
@@ -262,68 +262,7 @@ def search_rigveda(
     """
     return cosine_similarity_search(query, fields, page, page_size, min_similarity)
 
-# -----------------------------
-# Endpoint: Add Bookmark
-# -----------------------------
-@app.post("/bookmark", tags=["Rigveda"])
-def add_bookmark(bookmark: Bookmark):
-    mandala_key = f"Mandala {bookmark.mandala}"
-    sukta_key = f"Sukta {bookmark.sukta}"
 
-    if mandala_key not in rigveda_data or sukta_key not in rigveda_data[mandala_key]:
-        raise HTTPException(status_code=404, detail="Verse not found")
-
-    rik_item = next(
-        (rik for rik in rigveda_data[mandala_key][sukta_key] if rik["rik_number"] == bookmark.rik_number),
-        None
-    )
-
-    if not rik_item:
-        raise HTTPException(status_code=404, detail="Verse not found")
-
-    if bookmark.user_id not in bookmarks:
-        bookmarks[bookmark.user_id] = []
-
-    if rik_item not in bookmarks[bookmark.user_id]:
-        bookmarks[bookmark.user_id].append({
-            "mandala": bookmark.mandala,
-            "sukta": bookmark.sukta,
-            "rik_number": bookmark.rik_number,
-            "devanagari": rik_item.get("samhita", {}).get("devanagari", {}).get("text", ""),
-            "translation": rik_item.get("translation", "")
-        })
-
-    return {"message": "Bookmark added", "bookmarks": bookmarks[bookmark.user_id]}
-
-# -----------------------------
-# Endpoint: Get Bookmarks
-# -----------------------------
-@app.get("/bookmarks/{user_id}", tags=["Rigveda"])
-def get_bookmarks(user_id: str):
-    if user_id not in bookmarks or not bookmarks[user_id]:
-        raise HTTPException(status_code=404, detail="No bookmarks found for user")
-    return {"user_id": user_id, "bookmarks": bookmarks[user_id]}
-
-# -----------------------------
-# Endpoint: Remove Bookmark
-# -----------------------------
-@app.delete("/bookmark", tags=["Rigveda"])
-def remove_bookmark(bookmark: Bookmark):
-    if bookmark.user_id not in bookmarks:
-        raise HTTPException(status_code=404, detail="User has no bookmarks")
-
-    before_count = len(bookmarks[bookmark.user_id])
-    bookmarks[bookmark.user_id] = [
-        b for b in bookmarks[bookmark.user_id]
-        if not (b["mandala"] == bookmark.mandala and
-                b["sukta"] == bookmark.sukta and
-                b["rik_number"] == bookmark.rik_number)
-    ]
-
-    if len(bookmarks[bookmark.user_id]) == before_count:
-        raise HTTPException(status_code=404, detail="Bookmark not found")
-
-    return {"message": "Bookmark removed", "bookmarks": bookmarks[bookmark.user_id]}
 
 # -----------------------------
 # Endpoint: Random Verse
@@ -456,22 +395,24 @@ def ai_assistant(
         context_text += "\n"
 
     prompt = f"""
-You are an expert on Rigveda, one of the most ancient and sacred texts of Hinduism.
+    You are an expert on Rigveda, one of the most ancient and sacred texts of Hinduism.
 
-A user asked: "{query}"
+    A user asked: "{query}"
+    understand what actually user want to know
 
-Here is the relevant Rigveda context that mentions this topic:
-{context_text}
+    Here is the relevant Rigveda context that mentions this topic:
+    {context_text}
 
-Based on the above verses from the Rigveda:
-1. Explain the concept/deity/topic the user asked about
-2. Provide specific references to the verses shown above
-3. Explain the significance in Vedic literature
-4. If relevant, mention how this connects to broader Hindu philosophy
-5. What is the purpose of this verse
+    Based on the above verses from the Rigveda:
+    1. Understand the concept/deity/topic the user asked about
+    2. Understand the significance in Vedic literature
+    3. If relevant, mention how this connects to broader Hindu philosophy
+    4. Understand what is the purpose of this verse
+    and then give the answer to user what user want based on above points. 
 
-Please keep your answer focused on what is mentioned in these specific verses while providing clear explanations.
-"""
+
+    Please keep your answer focused on what is mentioned in these specific verses while providing clear explanations.
+    """
 
     try:
         response = model.generate_content(prompt)

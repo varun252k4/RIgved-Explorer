@@ -15,7 +15,7 @@ const VerseCards: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const API_BASE = "http://localhost:8000"; // change this if deployed
+  const API_BASE = "https://rigved-backend-1-0.onrender.com";
 
 const formatVerseText = (text?: string): React.ReactNode => {
   if (!text) return null;

@@ -21,7 +21,7 @@
 .audio-player-page {
   min-height: 100vh;
   background: linear-gradient(135deg, #fff8f0 0%, #fffbf0 100%);
-  padding: 100px 20px 140px; /* Extra padding at bottom for audio player */
+  padding: 100px 0px 140px; /* Extra padding at bottom for audio player */
   position: relative;
   overflow-x: hidden;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;

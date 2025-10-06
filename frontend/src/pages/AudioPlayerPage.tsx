@@ -52,6 +52,8 @@ const AudioPlayerPage: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
 
+  const API_BASE = "https://rigved-backend-1-0.onrender.com";
+
   // Fetch mandalas on component mount
   useEffect(() => {
     fetchMandalas();
@@ -223,7 +225,7 @@ const AudioPlayerPage: React.FC = () => {
 
   const fetchMandalas = async () => {
     try {
-      const response = await fetch('/mandalas');
+      const response = await fetch(`${API_BASE}/mandalas`);
       if (!response.ok) throw new Error('Failed to fetch mandalas');
       const data = await response.json();
       
@@ -264,7 +266,7 @@ const AudioPlayerPage: React.FC = () => {
 
   const fetchSuktas = async (mandalaId: number) => {
     try {
-      const response = await fetch(`/mandala/${mandalaId}/suktas`);
+      const response = await fetch(`${API_BASE}/mandala/${mandalaId}/suktas`);
       if (!response.ok) throw new Error('Failed to fetch suktas');
       const data = await response.json();
       
@@ -295,7 +297,7 @@ const AudioPlayerPage: React.FC = () => {
     setShowSearch(true); // Keep search visible until audio loads
 
     try {
-      const response = await fetch(`/mandala/${selectedMandala}/sukta/${selectedSukta}/view`);
+      const response = await fetch(`${API_BASE}/mandala/${selectedMandala}/sukta/${selectedSukta}/view`);
       if (!response.ok) throw new Error('Failed to load sukta');
       const data: SuktaView = await response.json();
       setSuktaView(data);
